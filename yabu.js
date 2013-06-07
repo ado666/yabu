@@ -1,838 +1,1050 @@
-Yabu				= {};
+bg.class.define('bg.yabu.model', {
+	extend	: {prototype: {}},
+	members	: {
+		init: function(data){
 
-var initializing 	= false;
-Yabu.Class			= function(){
+            if(data && data instanceof Object){
+                this.__attrs = data
+            } else {
+                this.__attrs 	= {};
+            }
 
-};
-Yabu.Class.extend= function(prop){
+			this.__changes 	= {};
+			this.__binds	= {};
 
-	prop			= prop ? prop : {};
+			this.__changes['G_L_O_B_A_L']	= {};
+			this.__binds['G_L_O_B_A_L']		= {};
 
-	var _super		= this.prototype;
 
-	initializing = true;
-	var prototype = new this();
-	initializing = false;
+			if (this.__defaults__)	this.set(this.__defaults__)
+		},
+		__prepare: function(data){
+			return data;
+		},
+		defaultNamespace: 'G_L_O_B_A_L',
+		get: function(prop){
+			return this.__attrs[prop];
+		},
+		set: function(attr1, attr2){
+	//		return;
+			// if reset model
+//			console.log('set')
+			if (arguments.length == 1){
+				var data	= attr1;
 
-	for(var name in prop) {
-		prototype[name] = typeof prop[name] == "function" && typeof _super[name] == "function" ? (function(name, fn) {
-			return function() {
-				var tmp = this._super;
+				var oldData	= this.__onReset(data);
 
-				this._super = _super[name];
-
-				var ret = fn.apply(this, arguments);
-				this._super = tmp;
-
-				return ret;
+				return oldData;
 			};
-		})(name, prop[name]) : prop[name];
-	};
 
-	// The dummy class constructor
-	function Class() {
-		if(!initializing && this.init)
-			this.init.apply(this, arguments);
-	}
+			attr2	= this.__prepare(attr2)
 
-	Class.prototype = prototype;
+			var prop		= attr1;
+			var value		= attr2;
 
-	Class.prototype.constructor = Class;
+			var oldValue	= this.__onChange(prop, value);
 
-	Class.extend = arguments.callee;
+			return oldValue;
+		},
+		bind: function(sourceChain, target, targetChain, arg4, arg5, props){
 
-	return Class;
-};
+			var cnv			= null;
+			var namespace	= null;
 
-Yabu.model			= Yabu.Class.extend({
-	init: function(data){
-		this.__attrs 	= {};
-		this.__changes 	= {};
-		this.__binds	= {};
-
-		if (this.__init__) this.__init__(data);
-
-		this.__changes['G_L_O_B_A_L']	= {};
-		this.__binds['G_L_O_B_A_L']		= {};
-
-
-		if (this.__defaults__)	this.set(this.__defaults__)
-		if (data)				this.set(data);
-	},
-	__prepare: function(data){
-		return data;
-	},
-	defaultNamespace: 'G_L_O_B_A_L',
-	get: function(prop){
-		return this.__attrs[prop];
-	},
-	set: function(attr1, attr2){
-//		return;
-		// if reset model
-		if (arguments.length == 1){
-			var data	= attr1;
-
-			var oldData	= this.__onReset(data);
-
-			return oldData;
-		};
-
-		var prop		= attr1;
-		var value		= attr2;
-
-		var oldValue	= this.__onChange(prop, value);
-
-		return oldValue;
-	},
-	bind: function(sourceChain, target, targetChain, arg4, arg5, props){
-
-		var cnv			= null;
-		var namespace	= null;
-
-		if (arg4 && arg5) {
-			namespace	= arg4;
-			cnv			= arg5;
-		};
-
-		if (arg4 && !arg5) {
-			if (typeof arg4 == 'string') {
+			if (arg4 && arg5) {
 				namespace	= arg4;
-			}else if (typeof arg4 == 'function'){
-				cnv		= arg4;
-			}else{
-				throw "invalid third parameter. must be string(if namespace) or function(if you give converter)"
-			}
-		}
-
-		cnv			= cnv 		? cnv 		: function(value){return value};
-		namespace	= namespace	? namespace	: this.defaultNamespace;
-
-		if (sourceChain instanceof Array) {
-			if (!cnv)
-				throw 'multi value binding want conveter'
-
-			sourceChain.map(function(item){this.bind(item, target, targetChain, arg4, arg5, sourceChain)}, this);
-			return;
-		}
-
-		var isKinetic	= false;
-		var isModel		= false;
-
-		for (var key in Kinetic){
-			var cls		= Kinetic[key];
-			if (!(typeof cls == 'object') && target instanceof cls)	isKinetic = true;
-		};
-
-		var subs		= {
-			sourceChain	: sourceChain,
-			target		: target,
-			targetChain	: targetChain,
-			cnv			: cnv,
-			type		: 'kinetic',
-			props		: props ? props : []
-		};
-
-		if (!this.__binds[namespace])				this.__binds[namespace]					= {};
-		if (!this.__binds[namespace][sourceChain])	this.__binds[namespace][sourceChain]	= [];
-
-		this.__binds[namespace][sourceChain].push(subs);
-
-		var setter			= 'set' + targetChain.charAt(0).toUpperCase() + targetChain.slice(1);
-
-		var data		= {};
-
-		if (props){
-
-			for (var i = 0; i < subs.props.length; i++){
-				data[props[i]]	= this.__attrs[props[i]]
-			};
-			target[setter](cnv(data))
-			return;
-		};
-
-//		console.log(target, setter)
-		target[setter](cnv(this.__attrs[sourceChain]));
-
-//		if (bg.instances.stage)	{
-//			bg.instances.stage.draw();
-//		}
-
-	},
-	unbind: function(props, namespace){
-		if (namespace == '*'){
-			for (var item in this.__binds){
-				this.unbind(props, namespace)
-			}
-			return;
-		}
-
-		if (props instanceof Array) {
-			props.map(function(prop){this.unbind(prop, namespace)}, this);
-			return;
-		};
-
-		namespace	= namespace ? namespace : this.defaultNamespace;
-
-		if (!this.__binds.hasOwnProperty(namespace))
-			throw Error('invalid namespace')
-
-		if (!(this.__binds[namespace].hasOwnProperty(props))){
-			var e		= new Error();
-			throw e;
-		};
-
-
-		this.__binds[namespace][props]	= [];
-	},
-	onChange: function(props, cbs, arg3, arg4){
-//		console.log('onchange', props)
-		var namespace	= null;
-		var self		= null;
-
-		if (props instanceof Array) {
-			props.map(function(prop){this.onChange(prop, cbs, arg3, arg4)}, this);
-			return;
-		};
-
-		if (cbs instanceof Array) {
-			cbs.map(function(cb){this.onChange(props ,cb,  arg3, arg4)}, this);
-			return;
-		};
-
-		if (arg3 && arg4) {
-			namespace	= arg3;
-			self		= arg4;
-		} else if (arg3 || arg4) {
-			var arg = arg3 || arg4
-			if (typeof arg == 'string') {
-				namespace	= arg;
-			}else if (typeof arg == 'object'){
-				self		= arg;
-			}else{
-				throw "invalid third parameter. must be string(if namespace) or object(if you give this)"
-			}
-		}
-
-		//@assert(props == '112', "Fuck u")
-
-		//@ifdef __DEV__
-		//@define __DEV__
-		// chekers
-		if ((typeof props != 'string') && !(props instanceof Array))
-			throw 'properties must be string or array of strings, but get: ' + String(props);
-		//@endif__DEV__
-
-		if (namespace && (typeof namespace != 'string'))
-			throw 'namespace must be string';
-
-		if ((typeof cbs != 'function') && !(cbs instanceof Array))
-			throw 'callbacks must be function or array of functions';
-
-		if (self && (typeof self != 'object'))
-			throw 'this argument must be object';
-
-		namespace	= namespace ? namespace : this.defaultNamespace;
-
-		if (!this.__changes[namespace])			this.__changes[namespace]			= {};
-		if (!this.__changes[namespace][props])	this.__changes[namespace][props]	= [];
-
-		this.__changes[namespace][props].push({'cb': cbs, 'self': self});
-	},
-	offChange: function(props, namespace){
-
-		if (namespace == '*'){
-			for (var item in this.__changes){
-				this.offChange(props, item)
-			}
-			return;
-		}
-
-		if (props instanceof Array) {
-			props.map(function(prop){this.offChange(prop, namespace)}, this);
-			return;
-		};
-
-		namespace	= namespace ? namespace : this.defaultNamespace;
-
-		if (!this.__changes.hasOwnProperty(namespace))
-			throw Error('invalid namespace')
-
-
-		if (!(this.__changes[namespace].hasOwnProperty(props))){
-			var e		= new Error();
-			throw e;
-		};
-
-		this.__changes[namespace][props]	= [];
-
-	},
-	fetch: function(){
-
-		var self		= this;
-
-		if (!this.__url__)	return;
-
-		bg.instances.connection.ajax('get', this.__url__, null, function(data){
-//			if (self.__prepare)	{
-//				self.set(self.__prepare(data))
-//				return;
-//			}
-			self.set(self.__prepare(data))
-//			self.set(data.data);
-		});
-	},
-	__onReset: function(data){
-//		console.log(data)
-//		return {};
-		var changeCbs		= [];
-		var bindCbs			= [];
-		var oldData			= {};
-//		console.log('reset', data)
-		for (var prop in data){
-//			console.log(prop)
-			oldData[prop]		= this.__attrs[prop];
-			this.__attrs[prop]	= data[prop];
-//			console.log(data)
-			changeCbs		= changeCbs.concat(this.__getCbs(prop, 'changes'));
-			bindCbs			= bindCbs.concat(this.__getCbs(prop, 'binds'));
-		};
-//		console.log('asdsssssss')
-		this.__fireChange(changeCbs, oldData);
-		this.__fireBinds(bindCbs, oldData);
-
-		return oldData;
-	},
-	__onChange: function(prop, value){
-		var oldData		= {};
-		oldData[prop]	= this.__attrs[prop];
-
-		if (oldData[prop]	== value){
-			return;
-		};
-
-		var changeCbs			= this.__getCbs(prop, 'changes');
-		var bindCbs				= this.__getCbs(prop, 'binds');
-
-		this.__attrs[prop]	= value;
-
-		this.__fireChange(changeCbs, oldData);
-		this.__fireBinds(bindCbs, oldData);
-
-		return oldData;
-	},
-	__fireChange: function(cbs, oldData){
-		var called		= [];
-//		return [];
-//		console.log(cbs)
-		for (var i = 0; i < cbs.length; i++){
-			if (!cbs[i])	continue;
-			var cb	= cbs[i]['cb'];
-			var self= cbs[i]['self'];
-
-			var alreadyCalled	= false;
-			for (var n = 0; n < called.length; n++){
-				if (cb == called[n])	alreadyCalled = true;
+				cnv			= arg5;
 			};
 
-			if (alreadyCalled)	continue;
+			if (arg4 && !arg5) {
+				if (typeof arg4 == 'string') {
+					namespace	= arg4;
+				}else if (typeof arg4 == 'function'){
+					cnv		= arg4;
+				}else{
+					throw "invalid third parameter. must be string(if namespace) or function(if you give converter)"
+				}
+			}
 
-			cb.apply(self, [this, oldData]);
-			called.push(cb);
-		}
-	},
-	__fireBinds: function(cbs, oldData){
-//		console.log(cbs)
-//		return [];
-		for (var i = 0; i < cbs.length; i++){
-			if (!cbs[i])	continue;
-			var cb	= cbs[i];
+			cnv			= cnv 		? cnv 		: function(value){return value};
+			namespace	= namespace	? namespace	: this.defaultNamespace;
 
-			var sourceChain		= cb.sourceChain;
-			var target			= cb.target;
-			var targetChain		= cb.targetChain;
-			var cnv				= cb.cnv;
-			var props			= cb.props;
+			if (sourceChain instanceof Array) {
+				if (!cnv)
+					throw 'multi value binding want conveter'
+
+				sourceChain.map(function(item){this.bind(item, target, targetChain, arg4, arg5, sourceChain)}, this);
+				return;
+			}
+
+			var isKinetic	= false;
+			var isModel		= false;
+
+	//		for (var key in Kinetic){
+	//			var cls		= Kinetic[key];
+	//			if (!(typeof cls == 'object') && target instanceof cls)	isKinetic = true;
+	//		};
+
+			var subs		= {
+				sourceChain	: sourceChain,
+				target		: target,
+				targetChain	: targetChain,
+				cnv			: cnv,
+				type		: 'kinetic',
+				props		: props ? props : []
+			};
+
+			if (!this.__binds[namespace])				this.__binds[namespace]					= {};
+			if (!this.__binds[namespace][sourceChain])	this.__binds[namespace][sourceChain]	= [];
+
+			this.__binds[namespace][sourceChain].push(subs);
 
 			var setter			= 'set' + targetChain.charAt(0).toUpperCase() + targetChain.slice(1);
 
 			var data		= {};
 
-			if (props.length){
-				for (var l = 0; l < props.length; l++){
-					data[props[l]]	= this.getChain(props[l])
+			if (props){
+
+				for (var i = 0; i < subs.props.length; i++){
+					data[props[i]]	= this.__attrs[props[i]]
 				};
-				//throw 'here' + data.y
-//				console.log('fire!!', cnv(data), target)
-				target[setter](cnv(data, oldData))
-//				return;
-			}else{
-				target[setter](cnv(this.getChain(sourceChain), oldData))
+				target[setter](cnv(data))
+				return;
+			};
+
+	//		log(target, setter)
+			target[setter](cnv(this.__attrs[sourceChain]));
+
+	//		if (bg.instances.stage)	{
+	//			bg.instances.stage.draw();
+	//		}
+
+		},
+		unbind: function(props, namespace){
+			if (namespace == '*'){
+				for (var item in this.__binds){
+					this.unbind(props, namespace)
+				}
+				return;
 			}
-//			bg.instances.stage.draw();
-		};
-//
-	},
-	getChain: function(sourceChain){
-		var data	= this.__attrs[sourceChain];
 
-		var sub		= sourceChain.split('.')
-//		console.log(sub)
-
-		return data;
-	},
-	__getCbs: function(prop, type){
-		var cbs		= [];
-		var path	= '__'+type;
-//		console.log(prop, 1)
-		for (var namespace in this[path]){
-			if (!this[path][namespace][prop])	this[path][namespace][prop]	= [];
-
-			for (var i = 0; i < this[path][namespace][prop].length; i++){
-				var cb	= this[path][namespace][prop][i];
-				cbs.push(cb);
+			if (props instanceof Array) {
+				props.map(function(prop){this.unbind(prop, namespace)}, this);
+				return;
 			};
 
-			if (!this[path][namespace]['*'])	continue;
+			namespace	= namespace ? namespace : this.defaultNamespace;
 
-			for (var i = 0; i < this[path][namespace]['*'].length; i++){
-				var cb	= this[path][namespace]['*'][i];
-				cbs.push(cb);
+			if (!this.__binds.hasOwnProperty(namespace))
+				throw Error('invalid namespace')
+
+			if (!(this.__binds[namespace].hasOwnProperty(props))){
+				var e		= new Error();
+				throw e;
 			};
-		};
 
-		return cbs;
+
+			this.__binds[namespace][props]	= [];
+		},
+		onChange: function(props, cbs, arg3, arg4){
+	//		log('onchange', props)
+			var namespace	= null;
+			var self		= null;
+
+			if (props instanceof Array) {
+				props.map(function(prop){this.onChange(prop, cbs, arg3, arg4)}, this);
+				return;
+			};
+
+			if (cbs instanceof Array) {
+				cbs.map(function(cb){this.onChange(props ,cb,  arg3, arg4)}, this);
+				return;
+			};
+
+			if (arg3 && arg4) {
+				namespace	= arg3;
+				self		= arg4;
+			} else if (arg3 || arg4) {
+				var arg = arg3 || arg4
+				if (typeof arg == 'string') {
+					namespace	= arg;
+				}else if (typeof arg == 'object'){
+					self		= arg;
+				}else{
+					throw "invalid third parameter. must be string(if namespace) or object(if you give this)"
+				}
+			}
+
+			if ((typeof props != 'string') && !(props instanceof Array))
+				throw 'properties must be string or array of strings, but get: ' + String(props);
+
+			if (namespace && (typeof namespace != 'string'))
+				throw 'namespace must be string';
+
+			if ((typeof cbs != 'function') && !(cbs instanceof Array))
+				throw 'callbacks must be function or array of functions';
+
+			if (self && (typeof self != 'object'))
+				throw 'this argument must be object';
+
+			namespace	= namespace ? namespace : this.defaultNamespace;
+
+			if (!this.__changes[namespace])			this.__changes[namespace]			= {};
+			if (!this.__changes[namespace][props])	this.__changes[namespace][props]	= [];
+
+			this.__changes[namespace][props].push({'cb': cbs, 'self': self});
+
+			this.__onChange(props, this.__attrs[props]);
+		},
+		offChange: function(props, namespace){
+
+			if (namespace == '*'){
+				for (var item in this.__changes){
+					this.offChange(props, item)
+				}
+				return;
+			}
+
+			if (props instanceof Array) {
+				props.map(function(prop){this.offChange(prop, namespace)}, this);
+				return;
+			};
+
+			namespace	= namespace ? namespace : this.defaultNamespace;
+
+			if (!this.__changes.hasOwnProperty(namespace))
+				return;
+	//			throw Error('invalid namespace')
+
+
+			if (!(this.__changes[namespace].hasOwnProperty(props))){
+				var e		= new Error();
+				throw e;
+			};
+
+			this.__changes[namespace][props]	= [];
+
+		},
+		fetch: function(){
+
+			var self		= this;
+
+			if (!this.__url__)	return;
+
+			bg.connection.getInstance().ajax('get', this.__url__, null, function(data){
+	//			if (self.__prepare)	{
+	//				self.set(self.__prepare(data))
+	//				return;
+	//			}
+				self.set(self.__prepare(data))
+	//			self.set(data.data);
+			});
+		},
+		__onReset: function(data){
+
+			var changeCbs		= [];
+			var bindCbs			= [];
+			var oldData			= {};
+
+			for (var prop in data){
+				var value = data[prop];
+//				if (data[prop] instanceof Array){
+//					var c	= new bg.yabu.collection();
+//					c.set(data[prop]);
+//					value	= c;
+//				}
+				oldData[prop]		= this.__attrs[prop];
+				this.__attrs[prop]	= value;
+
+				changeCbs		= changeCbs.concat(this.__getCbs(prop, 'changes'));
+				bindCbs			= bindCbs.concat(this.__getCbs(prop, 'binds'));
+			};
+
+			this.__fireChange(changeCbs, oldData);
+			this.__fireBinds(bindCbs, oldData);
+
+			return oldData;
+		},
+		__onChange: function(prop, value){
+			var oldData		= {};
+			oldData[prop]	= this.__attrs[prop];
+
+
+			if (oldData[prop] == value && !(value instanceof bg.yabu.model) && !(value instanceof bg.yabu.collection)){
+	//			log('property is ', prop)
+				return;
+			};
+
+			var changeCbs			= this.__getCbs(prop, 'changes');
+			var bindCbs				= this.__getCbs(prop, 'binds');
+//			console.log('value is ', value)
+			if (value instanceof Array)	{
+//				console.log('asd')
+				var c = new bg.yabu.collection();
+				c.set(value);
+				value = c
+			}
+			this.__attrs[prop]	= value;
+
+			this.__fireChange(changeCbs, oldData);
+			this.__fireBinds(bindCbs, oldData);
+
+			return oldData;
+		},
+		__fireChange: function(cbs, oldData){
+			var called		= [];
+	//		return [];
+	//		log(cbs)
+			for (var i = 0; i < cbs.length; i++){
+				if (!cbs[i])	continue;
+				var cb	= cbs[i]['cb'];
+				var self= cbs[i]['self'];
+
+				var alreadyCalled	= false;
+				for (var n = 0; n < called.length; n++){
+					if (cb == called[n])	alreadyCalled = true;
+				};
+
+				if (alreadyCalled)	continue;
+
+				cb.apply(self, [this, oldData]);
+				called.push(cb);
+			}
+		},
+		__fireBinds: function(cbs, oldData){
+	//		log(cbs)
+	//		return [];
+			for (var i = 0; i < cbs.length; i++){
+				if (!cbs[i])	continue;
+				var cb	= cbs[i];
+
+				var sourceChain		= cb.sourceChain;
+				var target			= cb.target;
+				var targetChain		= cb.targetChain;
+				var cnv				= cb.cnv;
+				var props			= cb.props;
+
+				var setter			= 'set' + targetChain.charAt(0).toUpperCase() + targetChain.slice(1);
+
+				var data		= {};
+
+				if (props.length){
+					for (var l = 0; l < props.length; l++){
+						data[props[l]]	= this.getChain(props[l])
+					};
+					//throw 'here' + data.y
+	//				log('fire!!', cnv(data), target)
+					target[setter](cnv(data, oldData))
+	//				return;
+				}else{
+					target[setter](cnv(this.getChain(sourceChain), oldData))
+				}
+	//			bg.instances.stage.draw();
+			};
+	//
+		},
+		getChain: function(sourceChain){
+			var data	= this.__attrs[sourceChain];
+
+			var sub		= sourceChain.split('.')
+	//		log(sub)
+
+			return data;
+		},
+		__getCbs: function(prop, type){
+			var cbs		= [];
+			var path	= '__'+type;
+	//		log(prop, 1)
+			for (var namespace in this[path]){
+				if (!this[path][namespace][prop])	this[path][namespace][prop]	= [];
+
+				for (var i = 0; i < this[path][namespace][prop].length; i++){
+					var cb	= this[path][namespace][prop][i];
+					cbs.push(cb);
+				};
+
+				if (!this[path][namespace]['*'])	continue;
+
+				for (var i = 0; i < this[path][namespace]['*'].length; i++){
+					var cb	= this[path][namespace]['*'][i];
+					cbs.push(cb);
+				};
+			};
+	//		if (prop == 'leads_to')	log(cbs)
+			return cbs;
+		}
 	}
 });
 
-Yabu.collection		= Yabu.Class.extend({
-	defaultNamespace: 'G_L_O_B_A_L',
-	init: function(data){
-		this._models	= [];
-		this.length		= 0;
+bg.class.define('bg.yabu.collection', {
+	extend		: {prototype: {}},
+	members		: {
+		defaultNamespace: 'G_L_O_B_A_L',
+		init: function(data){
 
-		this.__changes 	= {};
-		this.__binds	= {};
+            this._models	= [];
+			this.length		= 0;
 
-		this.__changes[this.defaultNamespace]	= [];
-		this.__binds[this.defaultNamespace]		= [];
+			this.__changes 	= {};
+			this.__binds	= {};
 
-		this.set(data);
-	},
-	set: function(data){
-		if (!data)	data = [];
+			this.__changes[this.defaultNamespace]	= [];
+			this.__binds[this.defaultNamespace]		= [];
 
-		if (data && !(data instanceof Array))
-			throw 'on set error. collection give array'
+            if(data && data.model){
+                this.modelConstr = data.model
+            }
+	//		this.set(data);
 
-//		this._models	= data;
-//		this.length	= this._models.length;
-//		this.__fireChanges();
-//		return this;
-//		console.log('set model in collection', data)
-		for (var i = 0; i < data.length; i++){
-			var item	= data[i];
+	//		if (this.__init__) this.__init__(data);
+		},
+		set: function(data){
+			if (!data)	data = [];
+//			console.log(data)
+			if (data && !(data instanceof Array))
+				throw 'on set error. collection give array'
 
-			if (item instanceof Yabu.model){
-				this._models.push(item);
-			}else if (typeof item == 'object'){
-				this._models.push(new Yabu.model(item));
+			this._models	= [];
+			this.length		= 0;
+
+//			console.log(data)
+			for (var i = 0; i < data.length; i++){
+				var item	= data[i];
+
+				if (item instanceof bg.yabu.model){
+					this._models.push(item);
+				}else if (typeof item == 'object'){
+					var m	= new bg.yabu.model();
+					m.set(item);
+					this._models.push(m);
+				};
 			};
-		}
 
-		this.length	= this._models.length;
-		this.__fireChanges();
-
-		return this;
-	},
-	get: function(index){
-		if (index + 1 > this._models.length)
-			throw 'index out of range'
-
-		return this._models[index]
-	},
-	push: function(model){
-		if (!model) return
-		if (model instanceof Yabu.model){
-			this._models.push(model);
-			this.length	= this._models.length
-			this.__fireChanges();
-			return
-		};
-
-		if (typeof model == 'object'){
-			this._models.push(new Yabu.model(model));
 			this.length	= this._models.length;
 			this.__fireChanges();
-			return
-		};
 
-		throw 'push parameter must be Yabu.model or object'
-	},
-	pop: function(){
-		var item	= this._models.pop()
-		this.length	= this._models.length;
-		this.__fireChanges();
-		return item;
-	},
-	unshift: function(model){
+			return this;
+		},
+		get: function(index){
+			if (index + 1 > this._models.length)
+				throw 'index out of range'
 
-		if (model instanceof Yabu.model){
-			this._models.unshift(model);
-			this.length	= this._models.length
-			this.__fireChanges();
-			return
-		}
-
-		if (typeof model == 'object'){
-			this._models.unshift(new Yabu.model(model));
-			this.length	= this._models.length
-			this.__fireChanges();
-			return
-		}
-
-		throw 'unshift parameter must be Yabu.model or object'
-
-	},
-	shift: function(){
-		var item	= this._models.shift()
-		this.length	= this._models.length;
-		this.__fireChanges();
-		return item;
-	},
-	onChange: function(cb, that){
-//		console.log('onChange in yabu')
-		this.__changes[this.defaultNamespace].push({"cb": cb, "that": that});
-		this.__fireChanges();
-	},
-	offChange: function(){
-		this.__changes[this.defaultNamespace]	= [];
-	},
-	__fireChanges: function(){
-//		console.log('fire changes')
-		for (var i = 0, l = this.__changes[this.defaultNamespace].length; i < l; i++){
-			var item		= this.__changes[this.defaultNamespace][i];
-			item.cb.apply(item.that, this._models);
-		}
-	}
-
-});
-
-
-// new version
-// model.bind('user.square.id', target, 'text')
-
-Yabu.model1			= Yabu.Class.extend({
-	__namespace__	: '__default__',
-	__defaults__	: {},
-	init			: function(data){
-		this.__attrs 			= {};
-
-		this.__changes 			= {};
-		this.__binds			= {};
-
-		this.__proxyNamespace	= new Date().valueOf();
-
-		this.__init__(data);
-
-		this.set(data);
-	},
-	get				: function(prop){
-		return this.__attrs[prop];
-	},
-	set				: function(attr1, attr2){
-		// set property or reset model
-//		console.log(attr1, attr2)
-		var oldData		= arguments.length === 1 ? this._reset(attr1, attr2) : this._set(attr1, attr2);
-
-		return oldData;
-
-	},
-	bind			: function(sChain, target, tChain, namespace, that){
-		// sChain is array of properties for source binding
-		// target is instance of Kinetic primitive
-		// tChain is property of instance of Kinetic primitive
-
-		if (!(sChain instanceof Array))
-			throw 'source chain must be array';
-
-		namespace	= this._getNamespace(namespace);
-
-
-		this._bind(sChain, target, tChain, namespace, that);
-
-	},
-	unbind			: function(prop){
-
-	},
-	onChange		: function(sChain, cbs, namespace, that){
-//		console.log(sChain, cbs, namespace, that)
-		if (typeof sChain !== 'string')
-			throw 'source chain must be string. expected' + typeof sChain;
-
-		if (!sChain)
-			throw 'source chain must be not empty string. expected' + sChain;
-
-		if (!(cbs instanceof Array))
-			throw 'cbs must be array';
-
-		if (!cbs.length)
-			throw 'cbs must contain 1 or more callbacks';
-
-		namespace	= this._getNamespace(namespace);
-
-		if (!namespace)
-			throw 'unknown namespace error'
-
-		this._onChange(sChain, cbs, namespace, that);
-
-//		var chain	= sChain.split('.');
-//
-//		for (var i = 0, l = chain.length; i < l; i++){
-//
-//		}
-	},
-	offChange		: function(sChain, namespace){
-
-		if (typeof sChain !== 'string')
-			throw 'source chain must be string. expected' + typeof sChain;
-
-		if (!sChain)
-			throw 'source chain must be not empty string. expected' + sChain;
-
-		namespace	= this._getNamespace(namespace);
-
-		if (!namespace)
-			throw 'unknown namespace error'
-
-		this._offChange(sChain, namespace);
-	},
-	_offChange: function(sChain, namespace){
-		var chain		= this._generateChain(sChain, this.__changes[namespace]);
-
-		for (var i = 0, l = chain.length; i < l; i++){
-			chain.shift();
-		};
-
-		this._chainOffchange(sChain, namespace);
-	},
-	_set			: function(prop, value){
-		var old				= this.__attrs[prop];
-
-//		this._chainUnbind(prop);
-//		this._chainBind(prop);
-
-		this.__attrs[prop]	= value;
-
-		this._fireChanges(old, prop);
-
-		return old;
-	},
-	_reset			: function(data){
-		var old				= this.__attrs;
-
-		for (var prop in data){
-			this._set(prop, data[prop]);
-		};
-
-		return old;
-	},
-	_bind			: function(sChain, target, tChain, namespace, that){
-
-		var chain		= this._generateChain(sChain[0], this.__binds[namespace]);
-
-		var info		= {
-			target		: target,
-			tChain		: tChain,
-			that		: that
-		};
-
-		chain.push(info);
-
-	},
-	_onChange		: function(sChain, cbs, namespace, that){
-		var chain		= this._generateChain(sChain, this.__changes[namespace]);
-
-		var info		= {
-			cbs			: cbs,
-			that		: that
-		};
-
-		chain.push(info);
-
-		this._chainOnchange(sChain, cbs, that);
-
-	},
-	_generateChain	: function(property, chained){
-
-		var chain	= property.split('.');
-
-		for (var i = 0, l = chain.length; i < l; i++){
-			var prop	= chain[i];
-
-			if (!chained[prop]){
-				if (i+1 >= l)	chained[prop] 			= [];
-				if (i+1 < l)	chained[prop]		 	= {};
+			return this._models[index]
+		},
+		push: function(model){
+//			console.log('model', model)
+			if (!model) return
+			if (model.__attrs){
+//				console.log('model')
+				this._models.push(model);
+				this.length	= this._models.length
+				this.__fireChanges();
+//				console.log('asd')
+				return
 			};
 
-			chained		= chained[prop];
+			if (typeof model == 'object'){
 
-		};
+                if(this.modelConstr){
+                    this._models.push(new this.modelConstr(model));
+                } else {
+                    this._models.push(new bg.yabu.model(model));
+                }
+				this.length	= this._models.length;
+				this.__fireChanges();
+				return
+			};
 
-		return chained;
-	},
-	_chainBind		: function(prop){
-		var model	= this.__attrs[prop];
+			throw 'push parameter must be bg.yabu.model or object'
+		},
+		pop: function(){
+			var item	= this._models.pop()
+			this.length	= this._models.length;
+			this.__fireChanges();
+			return item;
+		},
+		unshift: function(model){
 
-		if (!(model instanceof Yabu.model1))	return;
-
-		model.onChange()
-
-	},
-	_chainUnbind	: function(prop){
-
-		var model	= this.__attrs[prop];
-
-		if (!(model instanceof Yabu.model1))	return;
-
-
-	},
-	_chainOnchange	: function(prop, cbs, that){
-		var target	= this;
-		var chain	= prop.split('.');
-
-		if (chain.length <= 1)	return;
-
-		for (var i = 0, l = chain.length; i < l; i++){
-			if (i+1 === l){
-				continue;
+			if (model instanceof bg.yabu.model){
+				this._models.unshift(model);
+				this.length	= this._models.length
+				this.__fireChanges();
+				return
 			}
-			target	= target.get(chain[0]);
 
-			chain.shift();
+			if (typeof model == 'object'){
+				this._models.unshift(new bg.yabu.model(model));
+				this.length	= this._models.length
+				this.__fireChanges();
+				return
+			}
 
-			if (target)	target.onChange(chain.join('.'), cbs, this.__proxyNamespace+chain.join('.'), that);
-		};
+			throw 'unshift parameter must be bg.yabu.model or object'
 
+		},
+		shift: function(){
+			var item	= this._models.shift()
+			this.length	= this._models.length;
+			this.__fireChanges();
+			return item;
+		},
+		onChange: function(cb, that){
+	//		log('onChange in yabu')
+			this.__changes[this.defaultNamespace].push({"cb": cb, "that": that});
+			this.__fireChanges();
+		},
+		offChange: function(){
+			this.__changes[this.defaultNamespace]	= [];
+		},
+		__fireChanges: function(){
+//			console.log('fire')
+			for (var i = 0, l = this.__changes[this.defaultNamespace].length; i < l; i++){
+				var item		= this.__changes[this.defaultNamespace][i];
 
-	},
-	_chainOffchange	: function(prop, namespace){
-		var chain	= prop.split('.');
-		var target	= this;
+				item.cb.apply(item.that, [this._models]);
+			}
+		},
+		__prepare	: function(data){
+			return data;
+		},
+		fetch		: function(){
 
-		if (chain.length < 2)	return;
+			var self		= this;
 
-		for (var i = 0, l = chain.length; i < l; i++){
-			target	= target.get(chain[i]);
-//			target.offChange()
+			if (!this.__url__)	return;
+
+			bg.connection.getInstance().ajax('get', this.__url__, null, function(data){
+	//			if (self.__prepare)	{
+	//				self.set(self.__prepare(data))
+	//				return;
+	//			}
+				self.set(self.__prepare(data))
+	//			self.set(data.data);
+			});
 		}
-	},
-	_getNamespace	: function(namespace){
-		namespace	= namespace || this.__namespace__;
-
-		if (!this.__binds[namespace])
-			this.__binds[namespace]	= {}
-
-		if (!this.__changes[namespace])
-			this.__changes[namespace]	= {}
-
-		return namespace;
-	},
-	_fireChanges	: function(old, prop){
-
-		var newVal	= this.__attrs[prop];
-		var oldVal	= old;
-
-		var cbs		= this._getChanges(prop);
-
-		for (var i = 0, l = cbs.length; i < l; i++){
-			var callbacks	= cbs[i].cbs;
-			var that		= cbs[i].that;
-
-			for (var n = 0, m = callbacks.length; n < m; n++){
-				var cb		= callbacks[n];
-				cb.apply(that, [newVal, oldVal]);
-			}
-		};
-	},
-	_getChanges		: function(prop){
-		var cbs		= [];
-
-		for (var namespace in this.__changes){
-			for (var i = 0, l = this.__changes[namespace][prop].length; i < l; i++){
-				var cb		= this.__changes[namespace][prop][i];
-				cbs.push(cb)
-			}
-		}
-		return cbs;
-
-	},
-	__init__		: function(){},
-	__prepare		: function(data){
-		return data;
 	}
 });
 
-//bindChain	= {
-//	__default__ : {
-//		id : [],
-//		user: {
-//			id: [],
-//			name: []
-//		}
-//	}
-//}
+
+bg.class.define('bg.yabu.controller', {
+	members	: {
+		init	: function(){
+			this.cmodel			= new bg.yabu.model();
+			this.model			= new bg.yabu.collection();
+			this.current		= new bg.yabu.collection();
+		},
+		setDelegate		: function(delegate){
+			if (!delegate.filter) delegate.filter	= function(){return true}
+			this.delegate	= delegate;
+		},
+		setModel		: function(model){
+//			console.log('set model', model)
+			this.current.set([]);
+			if (!model)	return;
+
+			this.target.vused	= 0;
+			this.target.hused	= 0;
+
+			this.target.removeChildren();
+
+			this.model.offChange();
+
+			this.model	= model;
+//			this.model.onChange(this.onReset, this);
+//			this.onReset(model);
+			this.model.onChange(this.rebase, this);
+
+		},
+		rebase			: function(model){
+			var oldModels	= this.model;
+			var newModels	= model;
+			var forPush		= [];
+
+//			this.current	= oldModels;
+//			console.log(this.current.length)
+			// remove old items
+			for (var i = 0, l = this.current.length; i < l; i++){
+				var oldModel	= this.current.get(i);
+
+				var founded		= false;
+				for (var n = 0, m = newModels.length; n < m; n++){
+
+					if (newModels[n] == oldModel)	founded = true;
+				}
+
+				if (!founded || !this.delegate.filter(oldModel)){
+					this.remove(oldModel);
+				}
+			}
+
+			// add new items
+			for (var i = 0, l = newModels.length; i < l; i++){
+//				console.log('n', newModels)
+				var newModel	= newModels[i];
+
+				var founded		= false;
+				for (var n = 0, m = this.current.length; n < m; n++){
+					if (this.current.get(n) == newModel || !this.delegate.filter(newModel))	founded = true;
+
+//				console.log(this.current.get(n),' ==', newModel, !this.delegate.filter(newModel));
+				}
 
 
-//{
-//	square: {
-//		user: {
-//			id: {
-//
-//			}
-//		}
-//	}
-//}
-//
-//bind(user)
-//bind(user.square)
-//bind(user.sqaure.id)
+				if (!founded){
+//					console.log('add')
+					forPush.push(newModel);
+					this.add(newModel);
+				}
+			}
+
+//			this.current	= this.model;
+			for (var i = 0, l = forPush.length; i < l; i++){
+				this.current.push(forPush[i])
+			}
 
 
-Yabu.model2			= Yabu.Class.extend({
-	__namespace__	: '__default__',
-	__defaults__	: {},
-	init			: function(data){
-		this.__attrs 			= {};
+		},
+		setTarget		: function(target){
+			this.target	= target;
+		},
+		onReset			: function(){
 
-		this.__changes 			= {};
-		this.__binds			= {};
+			this.target.vused	= 0;
+			this.target.hused	= 0;
 
-		this.__proxyNamespace	= new Date().valueOf();
+			this.target.removeChildren();
 
-		this.set(data);
-	},
-	get				: function(prop){
-		return this.__attrs[prop];
-	},
-	set				: function(attr1, attr2){
-		var oldData		= arguments.length === 1 ? this._reset(attr1, attr2) : this._set(attr1, attr2);
+//			for (var i = 0; i < this.model.length; i++){
+//				var model	= this.model.get(i);
+//				console.log(model, this.model._models, model in this.model._models)
+//				if (model.get('id') == this.model._models)	return;
+//				this.add(model, i);
+//			};
+		},
+		onAdd			: function(model){
+			this.add(model, this.model.length - 1);
 
-		return oldData;
-	},
-	_set			: function(prop, value){
-		var old				= this.__attrs[prop];
+			this.target.getLayer().draw();
+		},
+		add				: function(model, pos){
+			var self	= this;
+			if (this.delegate.filter && !this.delegate.filter(model))	return;
+			var item	= this.delegate.createItem(model);
 
-		this.__attrs[prop]	= value;
+			if (pos === 0){
+				self.cmodel.set('selection', item);
+				if (item.smodel) item.smodel.set('selection', true);
+			}
 
-		return old;
-	},
-	_reset			: function(data){
-		var old				= this.__attrs;
+			item.on('click', function(){
 
-		for (var prop in data){
-			this._set(prop, data[prop]);
-		};
+				if (self.cmodel.get('selection') && self.cmodel.get('selection').smodel)	{
+					self.cmodel.get('selection').smodel.set('selection', false);
+				};
+				if (item.smodel) item.smodel.set('selection', true);
 
-		return old;
+				self.cmodel.set('selection', item);
+
+				item.getLayer().draw();
+			});
+
+			if (this.delegate.configureItem)	this.delegate.configureItem(item);
+			if (this.delegate.bindItem)			this.delegate.bindItem(this, item, model);
+
+			this.target.add(item);
+
+		},
+		remove			: function(model){
+			var foundedItem	= null;
+			for (var i = 0, l = this.target.children.length; i < l; i ++){
+				if (this.target.children[i].attrs.model == model)	foundedItem = this.target.children[i];
+			};
+			if (foundedItem) foundedItem.remove();//this.target.removeAnimation(foundedItem);
+		},
+		bindProperty	: function(source, target, cnv, item, model){
+			var setter	= 'set' + target.charAt(0).toUpperCase() + target.slice(1);
+			var val	= cnv 	? cnv(model.get(source)) 	: model.get(source);
+			item[setter]	? item[setter](val) 		: item.target = val;
+
+			model.bind(source, item, target, cnv)
+		}
 	}
 });
+
+bg.class.define('bg.yabu.model1', {
+	extend	: null,
+	members	: {
+		_initModel: function(data){
+
+			this.__attrs 	= {};
+			this.__changes 	= {};
+			this.__binds	= {};
+
+			this.__changes['G_L_O_B_A_L']	= {};
+			this.__binds['G_L_O_B_A_L']		= {};
+
+
+			if (this.__defaults__)	this.set(this.__defaults__);
+			console.log(data)
+			this.set(data);
+		},
+		__prepare: function(data){
+			return data;
+		},
+		defaultNamespace: 'G_L_O_B_A_L',
+		get: function(prop){
+			return this.__attrs[prop];
+		},
+		set: function(attr1, attr2){
+	//		return;
+			// if reset model
+//			console.log('set')
+			if (arguments.length == 1){
+				var data	= attr1;
+
+				var oldData	= this.__onReset(data);
+
+				return oldData;
+			};
+
+			attr2	= this.__prepare(attr2)
+
+			var prop		= attr1;
+			var value		= attr2;
+
+			var oldValue	= this.__onChange(prop, value);
+
+			return oldValue;
+		},
+		bind: function(sourceChain, target, targetChain, arg4, arg5, props){
+
+			var cnv			= null;
+			var namespace	= null;
+
+			if (arg4 && arg5) {
+				namespace	= arg4;
+				cnv			= arg5;
+			};
+
+			if (arg4 && !arg5) {
+				if (typeof arg4 == 'string') {
+					namespace	= arg4;
+				}else if (typeof arg4 == 'function'){
+					cnv		= arg4;
+				}else{
+					throw "invalid third parameter. must be string(if namespace) or function(if you give converter)"
+				}
+			}
+
+			cnv			= cnv 		? cnv 		: function(value){return value};
+			namespace	= namespace	? namespace	: this.defaultNamespace;
+
+			if (sourceChain instanceof Array) {
+				if (!cnv)
+					throw 'multi value binding want conveter'
+
+				sourceChain.map(function(item){this.bind(item, target, targetChain, arg4, arg5, sourceChain)}, this);
+				return;
+			}
+
+			var isKinetic	= false;
+			var isModel		= false;
+
+	//		for (var key in Kinetic){
+	//			var cls		= Kinetic[key];
+	//			if (!(typeof cls == 'object') && target instanceof cls)	isKinetic = true;
+	//		};
+
+			var subs		= {
+				sourceChain	: sourceChain,
+				target		: target,
+				targetChain	: targetChain,
+				cnv			: cnv,
+				type		: 'kinetic',
+				props		: props ? props : []
+			};
+
+			if (!this.__binds[namespace])				this.__binds[namespace]					= {};
+			if (!this.__binds[namespace][sourceChain])	this.__binds[namespace][sourceChain]	= [];
+
+			this.__binds[namespace][sourceChain].push(subs);
+
+			var setter			= 'set' + targetChain.charAt(0).toUpperCase() + targetChain.slice(1);
+
+			var data		= {};
+
+			if (props){
+
+				for (var i = 0; i < subs.props.length; i++){
+					data[props[i]]	= this.__attrs[props[i]]
+				};
+				target[setter](cnv(data))
+				return;
+			};
+
+	//		log(target, setter)
+			target[setter](cnv(this.__attrs[sourceChain]));
+
+	//		if (bg.instances.stage)	{
+	//			bg.instances.stage.draw();
+	//		}
+
+		},
+		unbind: function(props, namespace){
+			if (namespace == '*'){
+				for (var item in this.__binds){
+					this.unbind(props, namespace)
+				}
+				return;
+			}
+
+			if (props instanceof Array) {
+				props.map(function(prop){this.unbind(prop, namespace)}, this);
+				return;
+			};
+
+			namespace	= namespace ? namespace : this.defaultNamespace;
+
+			if (!this.__binds.hasOwnProperty(namespace))
+				throw Error('invalid namespace')
+
+			if (!(this.__binds[namespace].hasOwnProperty(props))){
+				var e		= new Error();
+				throw e;
+			};
+
+
+			this.__binds[namespace][props]	= [];
+		},
+		onChange: function(props, cbs, arg3, arg4){
+	//		log('onchange', props)
+			var namespace	= null;
+			var self		= null;
+
+			if (props instanceof Array) {
+				props.map(function(prop){this.onChange(prop, cbs, arg3, arg4)}, this);
+				return;
+			};
+
+			if (cbs instanceof Array) {
+				cbs.map(function(cb){this.onChange(props ,cb,  arg3, arg4)}, this);
+				return;
+			};
+
+			if (arg3 && arg4) {
+				namespace	= arg3;
+				self		= arg4;
+			} else if (arg3 || arg4) {
+				var arg = arg3 || arg4
+				if (typeof arg == 'string') {
+					namespace	= arg;
+				}else if (typeof arg == 'object'){
+					self		= arg;
+				}else{
+					throw "invalid third parameter. must be string(if namespace) or object(if you give this)"
+				}
+			}
+
+			if ((typeof props != 'string') && !(props instanceof Array))
+				throw 'properties must be string or array of strings, but get: ' + String(props);
+
+			if (namespace && (typeof namespace != 'string'))
+				throw 'namespace must be string';
+
+			if ((typeof cbs != 'function') && !(cbs instanceof Array))
+				throw 'callbacks must be function or array of functions';
+
+			if (self && (typeof self != 'object'))
+				throw 'this argument must be object';
+
+			namespace	= namespace ? namespace : this.defaultNamespace;
+
+			if (!this.__changes[namespace])			this.__changes[namespace]			= {};
+			if (!this.__changes[namespace][props])	this.__changes[namespace][props]	= [];
+
+			this.__changes[namespace][props].push({'cb': cbs, 'self': self});
+
+			this.__onChange(props, this.__attrs[props]);
+		},
+		offChange: function(props, namespace){
+
+			if (namespace == '*'){
+				for (var item in this.__changes){
+					this.offChange(props, item)
+				}
+				return;
+			}
+
+			if (props instanceof Array) {
+				props.map(function(prop){this.offChange(prop, namespace)}, this);
+				return;
+			};
+
+			namespace	= namespace ? namespace : this.defaultNamespace;
+
+			if (!this.__changes.hasOwnProperty(namespace))
+				return;
+	//			throw Error('invalid namespace')
+
+
+			if (!(this.__changes[namespace].hasOwnProperty(props))){
+				var e		= new Error();
+				throw e;
+			};
+
+			this.__changes[namespace][props]	= [];
+
+		},
+		fetch: function(){
+
+			var self		= this;
+
+			if (!this.__url__)	return;
+
+			bg.connection.getInstance().ajax('get', this.__url__, null, function(data){
+	//			if (self.__prepare)	{
+	//				self.set(self.__prepare(data))
+	//				return;
+	//			}
+				self.set(self.__prepare(data))
+	//			self.set(data.data);
+			});
+		},
+		__onReset: function(data){
+
+			var changeCbs		= [];
+			var bindCbs			= [];
+			var oldData			= {};
+
+			for (var prop in data){
+				var value = data[prop];
+//				if (data[prop] instanceof Array){
+//					var c	= new bg.yabu.collection();
+//					c.set(data[prop]);
+//					value	= c;
+//				}
+				oldData[prop]		= this.__attrs[prop];
+				this.__attrs[prop]	= value;
+
+				changeCbs		= changeCbs.concat(this.__getCbs(prop, 'changes'));
+				bindCbs			= bindCbs.concat(this.__getCbs(prop, 'binds'));
+			};
+
+			this.__fireChange(changeCbs, oldData);
+			this.__fireBinds(bindCbs, oldData);
+
+			return oldData;
+		},
+		__onChange: function(prop, value){
+			var oldData		= {};
+			oldData[prop]	= this.__attrs[prop];
+
+
+			if (oldData[prop] == value && !(value instanceof bg.yabu.model) && !(value instanceof bg.yabu.collection)){
+	//			log('property is ', prop)
+				return;
+			};
+
+			var changeCbs			= this.__getCbs(prop, 'changes');
+			var bindCbs				= this.__getCbs(prop, 'binds');
+//			console.log('value is ', value)
+			if (value instanceof Array)	{
+//				console.log('asd')
+				var c = new bg.yabu.collection();
+				c.set(value);
+				value = c
+			}
+			this.__attrs[prop]	= value;
+
+			this.__fireChange(changeCbs, oldData);
+			this.__fireBinds(bindCbs, oldData);
+
+			return oldData;
+		},
+		__fireChange: function(cbs, oldData){
+			var called		= [];
+	//		return [];
+	//		log(cbs)
+			for (var i = 0; i < cbs.length; i++){
+				if (!cbs[i])	continue;
+				var cb	= cbs[i]['cb'];
+				var self= cbs[i]['self'];
+
+				var alreadyCalled	= false;
+				for (var n = 0; n < called.length; n++){
+					if (cb == called[n])	alreadyCalled = true;
+				};
+
+				if (alreadyCalled)	continue;
+
+				cb.apply(self, [this, oldData]);
+				called.push(cb);
+			}
+		},
+		__fireBinds: function(cbs, oldData){
+	//		log(cbs)
+	//		return [];
+			for (var i = 0; i < cbs.length; i++){
+				if (!cbs[i])	continue;
+				var cb	= cbs[i];
+
+				var sourceChain		= cb.sourceChain;
+				var target			= cb.target;
+				var targetChain		= cb.targetChain;
+				var cnv				= cb.cnv;
+				var props			= cb.props;
+
+				var setter			= 'set' + targetChain.charAt(0).toUpperCase() + targetChain.slice(1);
+
+				var data		= {};
+
+				if (props.length){
+					for (var l = 0; l < props.length; l++){
+						data[props[l]]	= this.getChain(props[l])
+					};
+					//throw 'here' + data.y
+	//				log('fire!!', cnv(data), target)
+					target[setter](cnv(data, oldData))
+	//				return;
+				}else{
+					target[setter](cnv(this.getChain(sourceChain), oldData))
+				}
+	//			bg.instances.stage.draw();
+			};
+	//
+		},
+		getChain: function(sourceChain){
+			var data	= this.__attrs[sourceChain];
+
+			var sub		= sourceChain.split('.')
+	//		log(sub)
+
+			return data;
+		},
+		__getCbs: function(prop, type){
+			var cbs		= [];
+			var path	= '__'+type;
+	//		log(prop, 1)
+			for (var namespace in this[path]){
+				if (!this[path][namespace][prop])	this[path][namespace][prop]	= [];
+
+				for (var i = 0; i < this[path][namespace][prop].length; i++){
+					var cb	= this[path][namespace][prop][i];
+					cbs.push(cb);
+				};
+
+				if (!this[path][namespace]['*'])	continue;
+
+				for (var i = 0; i < this[path][namespace]['*'].length; i++){
+					var cb	= this[path][namespace]['*'][i];
+					cbs.push(cb);
+				};
+			};
+	//		if (prop == 'leads_to')	log(cbs)
+			return cbs;
+		}
+	}
+});
+
+
+
